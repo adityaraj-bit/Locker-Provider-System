@@ -1,0 +1,221 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+//////////////////////////
+// ENUMS
+//////////////////////////
+
+enum Role {
+  STUDENT
+  STORE_OWNER
+  ADMIN
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CHECKED_IN
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum IssueStatus {
+  OPEN
+  RESOLVED
+  REFUNDED
+}
+
+//////////////////////////
+// USER SYSTEM
+//////////////////////////
+
+model User {
+  id              String   @id @default(uuid())
+  name            String
+  email           String   @unique
+  phone           String   @unique
+  password        String
+  role            Role     @default(STUDENT)
+  
+  // Wallet implementation
+  walletBalance   Float    @default(0)
+  frozenBalance   Float    @default(0)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  stores          Store[]
+  bookings        Booking[]
+  reviews         Review[]
+  withdrawals     Withdrawal[]
+  issues          Issue[]
+}
+
+//////////////////////////
+// STORE SYSTEM
+//////////////////////////
+
+model Store {
+  id              String   @id @default(uuid())
+  ownerId         String
+  name            String
+  description     String?
+  address         String?
+  latitude        Decimal  @db.Decimal(9, 6)
+  longitude       Decimal  @db.Decimal(9, 6)
+  isVerified      Boolean  @default(false)
+  securityDeposit Float    @default(0) // base deposit per slot or fixed
+  rating          Float    @default(0)
+  pricePerSlot    Float    @default(50)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  owner           User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  capacities      StoreCapacity[]
+  bookings        Booking[]
+  reviews         Review[]
+  documents       StoreDocument[]
+  issues          Issue[]
+
+  @@index([latitude, longitude])
+}
+
+model StoreCapacity {
+  id              String   @id @default(uuid())
+  storeId         String
+  date            DateTime @db.Date
+  totalSlots      Int
+  availableSlots  Int
+
+  store           Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, date])
+  @@index([storeId])
+}
+
+//////////////////////////
+// BOOKING SYSTEM
+//////////////////////////
+
+model Booking {
+  id              String        @id @default(uuid())
+  userId          String
+  storeId         String
+  bookingDate     DateTime      @db.Date
+  status          BookingStatus @default(PENDING)
+  qrCode          String?       @unique // Optional now as per user request
+  otp             String?
+  itemCount       Int           @default(1)
+  
+  // Financial Tracking
+  totalPrice      Float         @default(0)
+  platformFee     Float         @default(0)
+  netEntry        Float         @default(0) // Amount to be added to wallet
+  securityPaid    Float         @default(0)
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  user            User          @relation(fields: [userId], references: [id])
+  store           Store         @relation(fields: [storeId], references: [id])
+  logs            BookingLog[]
+  payment         Payment?
+  issue           Issue?
+}
+
+model BookingLog {
+  id          String   @id @default(uuid())
+  bookingId   String
+  status      String
+  timestamp   DateTime @default(now())
+
+  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+}
+
+//////////////////////////
+// DISPUTE & WITHDRAWAL
+//////////////////////////
+
+model Issue {
+  id          String      @id @default(uuid())
+  bookingId   String      @unique
+  userId      String
+  storeId     String
+  reason      String
+  description String?
+  status      IssueStatus @default(OPEN)
+  refundAmount Float      @default(0)
+  
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  booking     Booking     @relation(fields: [bookingId], references: [id])
+  user        User        @relation(fields: [userId], references: [id])
+  store       Store       @relation(fields: [storeId], references: [id])
+}
+
+model Withdrawal {
+  id          String   @id @default(uuid())
+  userId      String
+  amount      Float
+  status      String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+//////////////////////////
+// PAYMENT & REVIEWS
+//////////////////////////
+
+model Payment {
+  id            String        @id @default(uuid())
+  bookingId     String        @unique
+  amount        Float
+  status        PaymentStatus @default(PENDING)
+  paymentMethod String?
+  transactionRef String?
+
+  createdAt     DateTime      @default(now())
+
+  booking       Booking       @relation(fields: [bookingId], references: [id])
+}
+
+model Review {
+  id          String   @id @default(uuid())
+  userId      String
+  storeId     String
+  rating      Int
+  comment     String?
+
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id])
+  store       Store    @relation(fields: [storeId], references: [id])
+}
+
+model StoreDocument {
+  id        String   @id @default(uuid())
+  storeId   String
+  docType   String   
+  docUrl    String
+  verified  Boolean  @default(false)
+
+  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+}
