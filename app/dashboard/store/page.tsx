@@ -115,6 +115,10 @@ export default function StoreOwnerDashboard() {
   }
 
   const handleUpdateCapacity = async () => {
+    if (newCapacity < 0) {
+      toast.error("Capacity cannot be negative");
+      return;
+    }
     try {
       const res = await fetch(`/api/stores/${store.id}/capacity`, {
         method: "POST",
@@ -367,7 +371,13 @@ export default function StoreOwnerDashboard() {
                   <h2 className="text-3xl font-black uppercase tracking-tighter italic">Center Scale</h2>
                   <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Update total available storage slots</p>
                </div>
-               <input type="number" value={newCapacity} onChange={(e) => setNewCapacity(parseInt(e.target.value))} className="w-full bg-background p-6 rounded-sm text-center text-4xl font-black italic border border-border/10 shadow-inner" />
+               <input 
+                 type="number" 
+                 min="0"
+                 value={newCapacity} 
+                 onChange={(e) => setNewCapacity(parseInt(e.target.value))} 
+                 className="w-full bg-background p-6 rounded-sm text-center text-4xl font-black italic border border-border/10 shadow-inner" 
+               />
                <div className="flex flex-col gap-3">
                   <button onClick={handleUpdateCapacity} className="bg-primary text-primary-foreground py-5 text-[11px] font-black uppercase tracking-[0.3em] hover:scale-105 transition-all shadow-xl">Confirm Update</button>
                   <button onClick={() => setShowCapacity(false)} className="py-2 text-[9px] font-black text-muted-foreground uppercase tracking-widest hover:text-foreground">Discard Changes</button>

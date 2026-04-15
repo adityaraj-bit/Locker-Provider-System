@@ -32,6 +32,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const user = await requireAuth("STORE_OWNER");
     const body = await req.json();
     const { date, totalSlots } = body;
+    
+    if (totalSlots < 0) {
+      return NextResponse.json({ success: false, error: "Capacity cannot be negative" }, { status: 400 });
+    }
 
     // Verify ownership
     const store = await prisma.store.findUnique({ where: { id } });
